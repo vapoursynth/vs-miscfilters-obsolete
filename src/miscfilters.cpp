@@ -130,7 +130,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
     if (vsapi->mapGetError(result)) {
         vsapi->mapSetError(out, vsapi->mapGetError(result));
     } else {
-        vsapi->mapSetNode(out, "clip", vsapi->mapGetNode(result, "clip", 0, nullptr), maAppend);
+        vsapi->mapConsumeNode(out, "clip", vsapi->mapGetNode(result, "clip", 0, nullptr), maAppend);
     }
     vsapi->freeMap(result);
 }
