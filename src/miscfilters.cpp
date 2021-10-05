@@ -29,17 +29,66 @@
 #include <vector>
 #include <VapourSynth4.h>
 #include <VSHelper4.h>
-#include "filtershared.h"
-
-#ifdef VS_TARGET_CPU_X86
-#include <emmintrin.h>
-#endif
 
 namespace {
 std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 } // namespace
 
 using namespace vsh;
+
+///////////////////////////////////////
+// Shared
+
+template<typename T>
+struct DualNodeData : public T {
+private:
+    const VSAPI *vsapi;
+public:
+    VSNode *node1 = nullptr;
+    VSNode *node2 = nullptr;
+
+    explicit DualNodeData(const VSAPI *vsapi) noexcept : T(), vsapi(vsapi) {
+    }
+
+    ~DualNodeData() {
+        vsapi->freeNode(node1);
+        vsapi->freeNode(node2);
+    }
+};
+
+template<typename T>
+static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    delete reinterpret_cast<T *>(instanceData);
+}
+
+static bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowVariable = false, bool allowCompat = false) {
+    if (fi.colorFamily == cfUndefined && !allowVariable)
+        return false;
+
+    if ((fi.sampleType == stInteger && fi.bitsPerSample > 16) || (fi.sampleType == stFloat && fi.bitsPerSample != 32))
+        return false;
+
+    return true;
+}
+
+static inline void getPlanesArg(const VSMap *in, bool *process, const VSAPI *vsapi) {
+    int m = vsapi->mapNumElements(in, "planes");
+
+    for (int i = 0; i < 3; i++)
+        process[i] = (m <= 0);
+
+    for (int i = 0; i < m; i++) {
+        int o = vsapi->mapGetIntSaturated(in, "planes", i, nullptr);
+
+        if (o < 0 || o >= 3)
+            throw std::runtime_error("plane index out of range");
+
+        if (process[o])
+            throw std::runtime_error("plane specified twice");
+
+        process[o] = true;
+    }
+}
 
 ///////////////////////////////////////
 // SCDetect
